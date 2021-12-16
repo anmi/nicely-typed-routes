@@ -5,10 +5,26 @@ type Route<Tkey extends string> = {
   readonly params: Params<Tkey>;
 };
 
+type UnkwonObject = Record<string, unknown>;
+
+type RouteBasic<Tkey extends string, Tparams extends UnkwonObject> = {
+  readonly key: Tkey;
+  readonly params: Tparams;
+};
+
 type RouteDeclaration<Tpath extends string> = {
   readonly key: Tpath;
   readonly parse: (uri: string) => Route<Tpath> | null;
   readonly link: (route: Params<Tpath>) => string;
+};
+
+export type RouteDeclarationBasic<
+  Tkey extends string,
+  Tparams extends Record<string, unknown>
+> = {
+  readonly key: Tkey;
+  readonly parse: (uri: string) => RouteBasic<Tkey, Tparams> | null;
+  readonly link: (route: Tparams) => string;
 };
 
 export type RouteFrom<T> = T extends RouteDeclaration<infer TPath>
@@ -18,9 +34,9 @@ export type RouteFrom<T> = T extends RouteDeclaration<infer TPath>
 type RouteCombination<TRoute> = {
   readonly parse: (uri: string) => TRoute | null;
   readonly build: (route: TRoute) => string;
-  readonly add: <T2 extends string>(
-    declaration: RouteDeclaration<T2>
-  ) => RouteCombination<TRoute | Route<T2>>;
+  readonly add: <T2key extends string, T2params extends UnkwonObject>(
+    declaration: RouteDeclarationBasic<T2key, T2params>
+  ) => RouteCombination<TRoute | RouteBasic<T2key, T2params>>;
 };
 
 export function createRoutesDeclaration<Tpath extends string>(
@@ -33,7 +49,9 @@ export function createRoutesDeclaration<Tpath extends string>(
     build(route: Route<Tpath>) {
       return routeDeclaration.link(route.params);
     },
-    add<T2 extends string>(declaration: RouteDeclaration<T2>) {
+    add<T2key extends string, T2params extends UnkwonObject>(
+      declaration: RouteDeclarationBasic<T2key, T2params>
+    ) {
       return combine(combination, declaration);
     },
   };
@@ -41,23 +59,29 @@ export function createRoutesDeclaration<Tpath extends string>(
   return combination;
 }
 
-function combine<TRoute extends { readonly key: string }, Tpath extends string>(
+function combine<
+  TRoute extends { readonly key: string },
+  Tpath extends string,
+  Tparams extends UnkwonObject
+>(
   combination: RouteCombination<TRoute>,
-  declaration: RouteDeclaration<Tpath>
+  declaration: RouteDeclarationBasic<Tpath, Tparams>
 ) {
-  const result: RouteCombination<TRoute | Route<Tpath>> = {
-    parse(uri: string): TRoute | Route<Tpath> | null {
+  const result: RouteCombination<TRoute | RouteBasic<Tpath, Tparams>> = {
+    parse(uri: string): TRoute | RouteBasic<Tpath, Tparams> | null {
       return combination.parse(uri) || declaration.parse(uri);
     },
     build(route: TRoute | Route<Tpath>) {
       if (route.key === declaration.key) {
-        return declaration.link((route as Route<Tpath>).params);
+        return declaration.link((route as RouteBasic<Tpath, Tparams>).params);
       }
       return combination.build(route as TRoute);
     },
-    add<T2 extends string>(
-      declaration2: RouteDeclaration<T2>
-    ): RouteCombination<TRoute | Route<Tpath> | Route<T2>> {
+    add<T2key extends string, T2params extends UnkwonObject>(
+      declaration2: RouteDeclarationBasic<T2key, T2params>
+    ): RouteCombination<
+      TRoute | RouteBasic<Tpath, Tparams> | RouteBasic<T2key, T2params>
+    > {
       return combine(result, declaration2);
     },
   };
