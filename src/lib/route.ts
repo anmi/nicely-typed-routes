@@ -1,18 +1,18 @@
 import { Params } from './typesHelpers';
 
-type Route<Tkey extends string> = {
+export type Route<Tkey extends string> = {
   readonly key: Tkey;
   readonly params: Params<Tkey>;
 };
 
-type UnkwonObject = Record<string, unknown>;
+export type UnkwonObject = Record<string, unknown>;
 
-type RouteBasic<Tkey extends string, Tparams extends UnkwonObject> = {
+export type RouteBasic<Tkey extends string, Tparams extends UnkwonObject> = {
   readonly key: Tkey;
   readonly params: Tparams;
 };
 
-type RouteDeclaration<Tpath extends string> = {
+export type RouteDeclaration<Tpath extends string> = {
   readonly key: Tpath;
   readonly parse: (uri: string) => Route<Tpath> | null;
   readonly link: (route: Params<Tpath>) => string;
@@ -31,7 +31,7 @@ export type RouteFrom<T> = T extends RouteDeclaration<infer TPath>
   ? Route<TPath>
   : never;
 
-type RouteCombination<TRoute> = {
+export type RouteCombination<TRoute> = {
   readonly parse: (uri: string) => TRoute | null;
   readonly build: (route: TRoute) => string;
   readonly add: <T2key extends string, T2params extends UnkwonObject>(
