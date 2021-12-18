@@ -210,6 +210,10 @@ export function parse(pattern: string, uri: string) {
     }
   });
 
+  if (uri.length != index) {
+    return null;
+  }
+
   if (!matched) {
     return null;
   }

@@ -66,3 +66,11 @@ test('Should add custom parser', (t) => {
 
   t.deepEqual(routes.parse('/other'), null);
 });
+
+test('Should not match', (t) => {
+  const routes = createRoutesDeclaration(route('/foo/{foo:number}'));
+
+  const match = routes.parse('/foo/42/bar/70');
+
+  t.deepEqual(match, null);
+});
