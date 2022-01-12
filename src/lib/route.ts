@@ -204,7 +204,7 @@ export function parse(pattern: string, uri: string) {
         } else {
           params[block.name] = num;
         }
-      } else if (block.subtype === 'str') {
+      } else {
         params[block.name] = part;
       }
     }

@@ -74,3 +74,18 @@ test('Should not match', (t) => {
 
   t.deepEqual(match, null);
 });
+
+test('Should handle dash in path', (t) => {
+  const path = route('/foo/{foo:number}/foo-bar/{bar:string}');
+  const routes = createRoutesDeclaration(path);
+
+  const match = routes.parse('/foo/42/foo-bar/35');
+
+  t.deepEqual(match, {
+    key: path.key,
+    params: {
+      foo: 42,
+      bar: '35',
+    },
+  });
+});
