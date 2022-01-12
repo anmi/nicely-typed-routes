@@ -56,3 +56,22 @@ type ParamsForNormalizedUrl<TUrl> = {
 };
 
 export type Params<TUrl> = ParamsForNormalizedUrl<NormalizeUrl<TUrl>>;
+
+type getTypeFromMap2<
+  TName,
+  NameToTypeMap extends Record<string, unknown>
+> = TName extends keyof NameToTypeMap ? NameToTypeMap[TName] : unknown;
+type ParamsToUnion2<TUrl, TypesMap extends Record<string, unknown>> =
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  TUrl extends `${infer _H}{${infer N}:${infer T}}${infer O}`
+    ? readonly [N, getTypeFromMap2<T, TypesMap>] | ParamsToUnion<O>
+    : never;
+
+type ParamsForNormalizedUrl2<TUrl, TypesMap extends Record<string, unknown>> = {
+  readonly [K in ParamsToUnion2<TUrl, TypesMap> as K[0]]: K[1];
+};
+
+export type Params2<
+  TUrl,
+  TypesMap extends Record<string, unknown>
+> = ParamsForNormalizedUrl2<NormalizeUrl<TUrl>, TypesMap>;

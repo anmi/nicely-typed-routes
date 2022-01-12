@@ -1,6 +1,13 @@
 import test from 'ava';
 
-import { createRoutesDeclaration, route, RouteDeclarationBasic } from './route';
+import {
+  createRoutesDeclaration,
+  getExtendedTypesRoute,
+  numberParam,
+  route,
+  RouteDeclarationBasic,
+  UrlTypeCodec,
+} from './route';
 
 const categoriesRoute = route('/users/{userId:number}/categories/:category');
 const productsRoute = route('/products/{productId:number}');
@@ -65,6 +72,55 @@ test('Should add custom parser', (t) => {
   });
 
   t.deepEqual(routes.parse('/other'), null);
+});
+
+type ProductId = number & { readonly __TYPE__: 'ProductId' };
+type CustomTypes = {
+  readonly ProductId: ProductId;
+};
+
+const ProductIdCodec: UrlTypeCodec<ProductId> = {
+  decode: ({ index, url }) => {
+    const res = numberParam({ index, url });
+    if (res === null) return null;
+    return {
+      result: res.result as ProductId,
+      index: res.index,
+    };
+  },
+  encode: (num) => num.toString(),
+};
+
+const route2 = getExtendedTypesRoute<CustomTypes>({
+  ProductId: ProductIdCodec,
+  // ProductId: {
+  //   decode: ({ index, url }) => {
+  //     const res = numberParam({ index, url });
+  //     if (res === null) return null;
+  //     return {
+  //       result: res.result as ProductId,
+  //       index: res.index,
+  //     };
+  //   },
+  //   encode: (num) => num.toStirng(),
+  // },
+});
+
+test('Should match special ', (t) => {
+  const productRoute = route2('/foo/{foo:ProductId}');
+  const routes = createRoutesDeclaration(productRoute);
+
+  const match = routes.parse('/foo/42');
+
+  if (match) {
+    match.params.foo;
+  }
+  t.deepEqual(match, {
+    key: productRoute.key,
+    params: {
+      foo: 42 as ProductId,
+    },
+  });
 });
 
 test('Should not match', (t) => {

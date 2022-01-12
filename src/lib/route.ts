@@ -1,4 +1,4 @@
-import { Params } from './typesHelpers';
+import { Params, Params2 } from './typesHelpers';
 
 export type Route<Tkey extends string> = {
   readonly key: Tkey;
@@ -39,14 +39,17 @@ export type RouteCombination<TRoute> = {
   ) => RouteCombination<TRoute | RouteBasic<T2key, T2params>>;
 };
 
-export function createRoutesDeclaration<Tpath extends string>(
-  routeDeclaration: RouteDeclaration<Tpath>
-): RouteCombination<Route<Tpath>> {
-  const combination: RouteCombination<Route<Tpath>> = {
+export function createRoutesDeclaration<
+  Tkey extends string,
+  TParams extends UnkwonObject
+>(
+  routeDeclaration: RouteDeclarationBasic<Tkey, TParams>
+): RouteCombination<RouteBasic<Tkey, TParams>> {
+  const combination: RouteCombination<RouteBasic<Tkey, TParams>> = {
     parse(uri: string) {
       return routeDeclaration.parse(uri);
     },
-    build(route: Route<Tpath>) {
+    build(route: RouteBasic<Tkey, TParams>) {
       return routeDeclaration.link(route.params);
     },
     add<T2key extends string, T2params extends UnkwonObject>(
@@ -122,7 +125,7 @@ export function prepare(pattern: string) {
       } else {
         current = {
           type: 'param',
-          subtype: char === ':' ? 'str' : '',
+          subtype: char === ':' ? 'string' : '',
           name: '',
           parsingSubtype: false,
           notation: char as '{' | ':',
@@ -136,7 +139,7 @@ export function prepare(pattern: string) {
         } else {
           current = {
             type: 'param',
-            subtype: char === ':' ? 'str' : '',
+            subtype: char === ':' ? 'string' : '',
             name: '',
             parsingSubtype: false,
             notation: char as '{' | ':',
@@ -172,12 +175,83 @@ export function prepare(pattern: string) {
 }
 /* eslint-enable functional/no-let, functional/prefer-readonly-type, functional/no-loop-statement, functional/immutable-data */
 
-/* eslint-disable functional/no-let, functional/prefer-readonly-type, functional/no-loop-statement, functional/immutable-data */
-export function parse(pattern: string, uri: string) {
+type HandlerCtx = {
+  readonly index: number;
+  readonly url: string;
+};
+
+type MatchCtx<T> = {
+  readonly result: T;
+  readonly index: number;
+};
+
+type UrlTypeHandler<T> = (ctx: HandlerCtx) => MatchCtx<T> | null;
+export type UrlTypeCodec<T> = {
+  readonly decode: (ctx: HandlerCtx) => MatchCtx<T> | null;
+  readonly encode: (value: T) => string;
+};
+
+type TypesHandlersType = Record<string, UrlTypeCodec<unknown>>;
+
+/* eslint-disable functional/no-let, functional/no-loop-statement */
+export const stringParam: UrlTypeHandler<string> = ({ index, url }) => {
+  let part = '';
+  for (; index < url.length; index++) {
+    const char = url.charAt(index);
+
+    if (char !== '/') {
+      part += char;
+    } else {
+      break;
+    }
+  }
+
+  return {
+    result: part,
+    index,
+  };
+};
+const stringCodecs: UrlTypeCodec<string> = {
+  decode: stringParam,
+  encode: (str) => str,
+};
+/* eslint-enable functional/no-let, functional/no-loop-statement */
+
+export const numberParam: UrlTypeHandler<number> = ({ index, url }) => {
+  const res = stringParam({ index, url });
+
+  if (res === null) return null;
+
+  const num = parseInt(res.result, 10);
+
+  if (Number.isNaN(num)) return null;
+
+  return {
+    result: num,
+    index: res.index,
+  };
+};
+
+const numberCodecs: UrlTypeCodec<number> = {
+  decode: numberParam,
+  encode: (num) => num.toString(),
+};
+
+const defaultCodecs = {
+  string: stringCodecs,
+  number: numberCodecs,
+};
+
+/* eslint-disable functional/no-let, functional/prefer-readonly-type, functional/immutable-data */
+export function parse(
+  pattern: string,
+  uri: string,
+  typesHandlers: TypesHandlersType
+) {
   const parsed = prepare(pattern);
   let index = 0;
   let matched = true;
-  const params: { [key: string]: number | string } = {};
+  const params: { [key: string]: unknown } = {};
 
   parsed.forEach((block) => {
     if (block.type === 'literal') {
@@ -187,25 +261,15 @@ export function parse(pattern: string, uri: string) {
       }
       index += block.value.length;
     } else if (block.type === 'param') {
-      let part = '';
-      for (; index < uri.length; index++) {
-        const char = uri.charAt(index);
+      const { decode } = typesHandlers[block.subtype];
 
-        if (char !== '/') {
-          part += char;
-        } else {
-          break;
-        }
-      }
-      if (block.subtype === 'number') {
-        const num = parseInt(part, 10);
-        if (Number.isNaN(num)) {
-          matched = false;
-        } else {
-          params[block.name] = num;
-        }
+      const result = decode({ index, url: uri });
+
+      if (!result) {
+        matched = false;
       } else {
-        params[block.name] = part;
+        index = result.index;
+        params[block.name] = result.result;
       }
     }
   });
@@ -220,7 +284,7 @@ export function parse(pattern: string, uri: string) {
 
   return params;
 }
-/* eslint-enable functional/no-let, functional/prefer-readonly-type, functional/no-loop-statement, functional/immutable-data */
+/* eslint-enable functional/no-let, functional/prefer-readonly-type, functional/immutable-data */
 
 /* eslint-disable functional/no-let */
 export function buildUri(
@@ -248,8 +312,12 @@ export function route<TPattern extends string>(
   return {
     key: pathPattern,
     parse(uri: string): null | Route<TPattern> {
-      /* eslint-disable-next-line  @typescript-eslint/no-explicit-any */
-      const params = parse(pathPattern, uri) as any as Params<TPattern>;
+      const params = parse(
+        pathPattern,
+        uri,
+        defaultCodecs as TypesHandlersType
+        /* eslint-disable-next-line  @typescript-eslint/no-explicit-any */
+      ) as any as Params<TPattern>;
 
       if (params) {
         return { key: pathPattern, params };
@@ -261,5 +329,43 @@ export function route<TPattern extends string>(
       /* eslint-disable-next-line  @typescript-eslint/no-explicit-any */
       return buildUri(pathPattern, params as any);
     },
+  };
+}
+
+type ExtractTypesMap<CodecsMap extends Record<string, unknown>> = {
+  readonly [K in CodecsMap as K[0]]: K[1];
+};
+
+export function getExtendedTypesRoute<TypesMap extends UnkwonObject>(
+  argsParsers: TypesHandlersType
+) {
+  return function route2<
+    TPattern extends string
+    // TypesMap extends Record<string, unknown>
+  >(
+    pathPattern: TPattern
+  ): RouteDeclarationBasic<TPattern, Params2<TPattern, TypesMap>> {
+    return {
+      key: pathPattern,
+      parse(
+        uri: string
+      ): null | RouteBasic<TPattern, Params2<TPattern, TypesMap>> {
+        /* eslint-disable-next-line  @typescript-eslint/no-explicit-any */
+        const params = parse(pathPattern, uri, argsParsers) as any as Params2<
+          TPattern,
+          TypesMap
+        >;
+
+        if (params) {
+          return { key: pathPattern, params };
+        }
+
+        return null;
+      },
+      link(params: Params2<TPattern, TypesMap>): string {
+        /* eslint-disable-next-line  @typescript-eslint/no-explicit-any */
+        return buildUri(pathPattern, params as any);
+      },
+    };
   };
 }
