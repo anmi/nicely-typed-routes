@@ -332,12 +332,12 @@ export function route<TPattern extends string>(
   };
 }
 
-type ExtractTypesMap<CodecsMap extends Record<string, unknown>> = {
-  readonly [K in CodecsMap as K[0]]: K[1];
-};
+type Parsers<TypesMap extends Record<string, unknown>> = {
+  readonly [K in keyof TypesMap]: UrlTypeCodec<TypesMap[K]>
+}
 
 export function getExtendedTypesRoute<TypesMap extends UnkwonObject>(
-  argsParsers: TypesHandlersType
+  argsParsers: Parsers<TypesMap>
 ) {
   return function route2<
     TPattern extends string
@@ -351,7 +351,7 @@ export function getExtendedTypesRoute<TypesMap extends UnkwonObject>(
         uri: string
       ): null | RouteBasic<TPattern, Params2<TPattern, TypesMap>> {
         /* eslint-disable-next-line  @typescript-eslint/no-explicit-any */
-        const params = parse(pathPattern, uri, argsParsers) as any as Params2<
+        const params = parse(pathPattern, uri, argsParsers as any) as any as Params2<
           TPattern,
           TypesMap
         >;
